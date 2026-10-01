@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tienda — backend Java real (Spring Boot)</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#161d2e; --panel2:#1c2438; --line:#2c3654;
+    --text:#e7ebf5; --muted:#8a93ab; --accent:#5fd3c4; --accent2:#f2b84b; --danger:#e06666;
+    box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f4f6fb; --panel:#ffffff; --panel2:#eef1f9; --line:#d9deec;
+      --text:#1b2233; --muted:#5b6478; --accent:#0e9c8a; --accent2:#c9861e; --danger:#c0392b;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1420; --panel:#161d2e; --panel2:#1c2438; --line:#2c3654;
+    --text:#e7ebf5; --muted:#8a93ab; --accent:#5fd3c4; --accent2:#f2b84b; --danger:#e06666;
+  }
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 18px 60px;}
+  h1{font-size:1.3rem;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:.86rem;margin:0 0 20px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px;}
+  h2{font-size:.9rem;margin:0 0 14px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
+  .layout{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:start;}
+  @media (max-width:760px){.layout{grid-template-columns:1fr;}}
+  .catalogo{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px;}
+  .card b{font-size:.9rem;}
+  .card .precio{color:var(--accent);font-weight:600;font-size:.88rem;}
+  .card .stock{font-size:.76rem;color:var(--muted);}
+  .card .stock.agotado{color:var(--danger);font-weight:600;}
+  .card button{margin-top:6px;padding:9px;border-radius:8px;border:none;background:var(--accent);color:#08221d;font-weight:600;cursor:pointer;font-size:.84rem;}
+  .card button:disabled{opacity:.4;cursor:default;}
+  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+  .stat{background:var(--panel2);border-radius:10px;padding:10px;text-align:center;}
+  .stat b{display:block;font-size:1.1rem;}
+  .stat span{font-size:.7rem;color:var(--muted);}
+  .bar-row{display:flex;align-items:center;gap:8px;font-size:.78rem;margin-bottom:6px;}
+  .bar-row .label{width:110px;flex-shrink:0;color:var(--muted);}
+  .bar-track{flex:1;height:8px;background:var(--panel2);border-radius:6px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--accent);border-radius:6px;}
+  .list{max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
+  .list-item{background:var(--panel2);border-radius:9px;padding:8px 10px;font-size:.8rem;}
+  .list-item .meta{color:var(--muted);font-size:.7rem;}
+  table{width:100%;border-collapse:collapse;font-size:.84rem;}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);}
+  th{color:var(--muted);font-weight:500;font-size:.72rem;text-transform:uppercase;}
+  .empty{color:var(--muted);font-size:.8rem;padding:10px 0;}
+  .toggle-row{display:flex;align-items:center;gap:10px;font-size:.84rem;color:var(--muted);margin-top:4px;}
+  code{background:var(--panel2);padding:1px 5px;border-radius:5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tienda — backend Java real (Spring Boot)</h1>
+  <p class="sub">Cada compra llama a <code>PedidoService.crearPedido()</code> en el servidor a través de <code>TiendaController</code>. Todo lo que ves (stock, historial, estadísticas) es el estado real del backend, leído por <code>/api/estado</code>.</p>
+
+  <div class="layout">
+    <div class="panel">
+      <h2>Catálogo</h2>
+      <div class="catalogo" id="catalogo"></div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>Estadísticas</h2>
+        <div class="stats-grid">
+          <div class="stat"><b id="st-pedidos">0</b><span>Pedidos</span></div>
+          <div class="stat"><b id="st-unidades">0</b><span>Unidades</span></div>
+          <div class="stat"><b id="st-ingresos">$0</b><span>Ingresos</span></div>
+        </div>
+        <div id="st-barras"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Confirmaciones enviadas</h2>
+        <div class="list" id="confirmaciones"><p class="empty">Aún no hay confirmaciones.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Historial de pedidos</h2>
+    <table>
+      <thead><tr><th>#</th><th>Producto</th><th>Precio</th><th>Hora</th></tr></thead>
+      <tbody id="historial"><tr><td colspan="4" class="empty">Aún no hay pedidos.</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <label class="toggle-row">
+      <input type="checkbox" id="chkFactura">
+      Suscribir <code>FacturaListener</code> al canal "pedidos" en caliente (sin tocar <code>PedidoService</code>)
+    </label>
+    <div id="facturasWrap" style="display:none;margin-top:12px;">
+      <div class="list" id="facturas"><p class="empty">Aún no hay facturas.</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const money = n => n.toLocaleString('es-CO', {style:'currency', currency:'COP', maximumFractionDigits:0});
+
+function renderCatalogo(catalogo){
+  document.getElementById('catalogo').innerHTML = catalogo.map(p => `
+    <div class="card">
+      <b>${p.nombre}</b>
+      <span class="precio">${money(p.precio)}</span>
+      <span class="stock ${p.stock<=0?'agotado':''}">${p.stock<=0?'Agotado':'Stock: '+p.stock}</span>
+      <button ${p.stock<=0?'disabled':''} onclick="comprar('${p.id}')">Comprar</button>
+    </div>`).join('');
+}
+
+function renderStats(st){
+  document.getElementById('st-pedidos').textContent = st.totalPedidos;
+  document.getElementById('st-unidades').textContent = st.totalUnidades;
+  document.getElementById('st-ingresos').textContent = money(st.totalIngresos);
+  const entradas = Object.entries(st.porProducto);
+  const max = Math.max(1, ...entradas.map(e => e[1]));
+  document.getElementById('st-barras').innerHTML = entradas.map(([nombre,cant]) => `
+    <div class="bar-row">
+      <span class="label">${nombre}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(cant/max*100).toFixed(0)}%"></div></div>
+      <span>${cant}</span>
+    </div>`).join('');
+}
+
+function renderConfirmaciones(lista){
+  const el = document.getElementById('confirmaciones');
+  el.innerHTML = lista.length === 0 ? '<p class="empty">Aún no hay confirmaciones.</p>' :
+    lista.slice(0,8).map(m => `<div class="list-item">${m.texto}<div class="meta">${m.hora}</div></div>`).join('');
+}
+
+function renderFacturas(lista){
+  const el = document.getElementById('facturas');
+  el.innerHTML = lista.length === 0 ? '<p class="empty">Aún no hay facturas.</p>' :
+    lista.slice(0,8).map(m => `<div class="list-item">${m.texto}<div class="meta">${m.hora}</div></div>`).join('');
+}
+
+function renderHistorial(lista){
+  const el = document.getElementById('historial');
+  el.innerHTML = lista.length === 0 ? '<tr><td colspan="4" class="empty">Aún no hay pedidos.</td></tr>' :
+    lista.map(e => `<tr><td>#${e.idPedido}</td><td>${e.producto}</td><td>${money(e.precio)}</td><td>${e.hora}</td></tr>`).join('');
+}
+
+function pintar(estado){
+  renderCatalogo(estado.catalogo);
+  renderStats(estado.estadisticas);
+  renderConfirmaciones(estado.confirmaciones);
+  renderFacturas(estado.facturas);
+  renderHistorial(estado.historial);
+}
+
+async function cargarEstado(){
+  const resp = await fetch('/api/estado');
+  const estado = await resp.json();
+  pintar(estado);
+  document.getElementById('chkFactura').checked = estado.facturaActiva;
+  document.getElementById('facturasWrap').style.display = estado.facturaActiva ? 'block' : 'none';
+}
+
+async function comprar(productoId){
+  const resp = await fetch('/api/pedido?productoId=' + encodeURIComponent(productoId), { method:'POST' });
+  pintar(await resp.json());
+}
+
+document.getElementById('chkFactura').addEventListener('change', async e => {
+  const resp = await fetch('/api/factura?activar=' + e.target.checked, { method:'POST' });
+  const estado = await resp.json();
+  document.getElementById('facturasWrap').style.display = estado.facturaActiva ? 'block' : 'none';
+  renderFacturas(estado.facturas);
+});
+
+cargarEstado();
+</script>
+</body>
+</html>
